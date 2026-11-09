@@ -335,6 +335,7 @@ DISPLAY_ORDER: List[str] = [
 
 KNOWN_LIGHT: Set[str] = {
     "morning", "peachpuff", "zellner", "delek", "shine", "kanagawa-lotus",
+    "catppuccin-latte", "modus_operandi",
 }
 
 CORE_LIGHT: Set[str] = {"morning", "peachpuff", "zellner", "delek", "shine"}

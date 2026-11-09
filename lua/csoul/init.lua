@@ -309,7 +309,7 @@ function M.open()
 
   local entries = discover.schemes()
   if #entries == 0 then
-    notify("no colorschemes found in runtimepath", vim.log.levels.WARN)
+    notify("no colorschemes found", vim.log.levels.WARN)
     return
   end
 

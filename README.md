@@ -48,8 +48,10 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
 | `<CR>` | Keep the selected scheme and close |
 | `q` / `<Esc>` | Close and restore the scheme that was active before opening |
 
-- Schemes come from `runtimepath` (`colors/*.vim` and `colors/*.lua`). A lazy
-  plugin that is not loaded yet is not listed, because Neovim cannot apply it.
+- Schemes come from the same places `:colorscheme` searches: `colors/*.vim` and
+  `colors/*.lua` in `runtimepath`, and `pack/*/{start,opt}/*/colors` under
+  `packpath`. Schemes that a plugin manager keeps outside those paths are not
+  listed, because Neovim cannot apply them.
 - Palettes are read from the highlight groups after each scheme loads
   (`Normal`, `Function`, `Keyword`, `String`, …), so any installed scheme works
   without a table of colours.
