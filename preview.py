@@ -755,7 +755,7 @@ def draw_list(
         cv.put(LEFT_X + 5, y, fit(name, 17), fg=name_fg, bold=is_selected)
 
         for j, colour in enumerate(item.mini):
-            cv.cell(LEFT_X + 23 + j * 2, y).bg = colour
+            cv.put(LEFT_X + 23 + j, y, "󱓻", fg=colour)
 
         if is_selected:
             tag, tag_fg = "current", theme.green

@@ -15,7 +15,9 @@ terminal.
 
 ## Run
 
-The study is composed for **112 × 33 cells** and truecolor.
+The study is composed for **112 × 33 cells** and truecolor. The color chips
+beside each scheme name use the Nerd Font glyph `󱓻` (`nf-md-square_rounded`),
+so run it with a Nerd Font-patched terminal font.
 
 ```sh
 python3 preview.py
