@@ -93,3 +93,7 @@ real highlight colours.
 - The selected row is a low-contrast wash with a solid accent spine.
 - No frame, shadow, backdrop, gradients, dividers, or decorative letterspacing.
 - Truecolor only; no third-party Python packages.
+
+## License
+
+This project is dedicated to the public domain under [CC0 1.0 Universal](LICENSE).
