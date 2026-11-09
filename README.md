@@ -8,9 +8,10 @@ the composition, palette, typography and spacing can be judged in a real
 terminal.
 
 ```text
-    ◆ csoul  │  colorscheme studio                        ● 32 detected  ·  nvim 0.12.5
-       /  Search schemes, palettes, moods...          esc   ALL 32  DARK 26  LIGHT 6
-    S C H E M E S  15 / 32                    P R E V I E W                 TRUECOLOR
+                                                    32 detected · nvim 0.12.5
+    / Search schemes, palettes, moods...                ALL 32   DARK 26   LIGHT 6
+    Schemes  15 / 32                                    Preview
+    01 kanagawa-wave    󱓻󱓻󱓻󱓻󱓻󱓻󱓻󱓻󱓻󱓻 current          kanagawa-wave
 ```
 
 ## Run
@@ -51,10 +52,9 @@ real highlight colours.
 
 ## Design notes
 
-- A single floating panel over a dim aurora field, with a soft drop shadow.
-- The selected row is a low-contrast wash with a solid accent spine, not a
-  loud full-saturation bar.
-- Section labels and badges use letterspacing instead of extra borders.
-- The right pane proves the scheme with six swatches, a syntax sample, and a
-  row of UI chips (`Normal`, `Visual`, `Search`, `Error`, `Hint`).
+- Only elements that carry information or speed up choosing are drawn: search,
+  filters, the scheme list with ten colour chips per row, key hints, the palette,
+  a syntax sample, and UI chips (`Normal`, `Visual`, `Search`, `Error`, `Hint`).
+- The selected row is a low-contrast wash with a solid accent spine.
+- No frame, shadow, backdrop, gradients, dividers, or decorative letterspacing.
 - Truecolor only; no third-party Python packages.
