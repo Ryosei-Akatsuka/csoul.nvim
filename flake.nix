@@ -25,6 +25,15 @@
             exec python3 ${./preview.py} "$@"
           '';
         };
+
+        nvim-plugin = pkgs.vimUtils.buildVimPlugin {
+          pname = "csoul.nvim";
+          version = "0.1.0";
+          src = nixpkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = nixpkgs.lib.fileset.unions [ ./lua ./plugin ];
+          };
+        };
       });
 
       apps = eachSystem (system: _pkgs: {

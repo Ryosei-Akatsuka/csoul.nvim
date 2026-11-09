@@ -2,10 +2,9 @@
 
 A quiet little colorscheme studio for Neovim — first as a static terminal UI study.
 
-This repository is the design step before the Neovim implementation: a
-dependency-free Python script paints the finished picker with ANSI truecolor so
-the composition, palette, typography and spacing can be judged in a real
-terminal.
+This repository holds two things: a dependency-free Python script that paints
+the finished picker with ANSI truecolor (`preview.py`, the design study), and the
+Neovim plugin that implements it (`lua/csoul`, `plugin/csoul.lua`).
 
 ```text
                                                     32 detected · nvim 0.12.5
@@ -30,6 +29,38 @@ Or, on this Nix machine:
 nix run .
 nix develop          # python3 + neovim + git
 ```
+
+## Neovim plugin
+
+`:Csoul` opens the picker as two floating windows. It needs Neovim 0.10 or
+later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
+106 × 30 cells.
+
+| Key | Action |
+| --- | --- |
+| `j` / `k`, arrows | Move; the highlighted scheme is applied live |
+| `/` | Search by name (type, then `<Esc>` or `<CR>` to return to the list) |
+| `<Tab>` / `<S-Tab>` | Cycle ALL / DARK / LIGHT |
+| `<CR>` | Keep the selected scheme and close |
+| `q` / `<Esc>` | Close and restore the scheme that was active before opening |
+
+- Schemes come from `runtimepath` (`colors/*.vim` and `colors/*.lua`). A lazy
+  plugin that is not loaded yet is not listed, because Neovim cannot apply it.
+- Palettes are read from the highlight groups after each scheme loads
+  (`Normal`, `Function`, `Keyword`, `String`, …), so any installed scheme works
+  without a table of colours.
+- Light schemes are detected from the scheme file (`background = "light"`) and
+  a short list of built-in light schemes.
+
+Nix provides the plugin as `packages.<system>.nvim-plugin`, built with
+`vimUtils.buildVimPlugin`:
+
+```sh
+nix build .#nvim-plugin
+```
+
+Flakes only read files tracked by Git, so `git add lua plugin` first, or use
+`nix build path:.#nvim-plugin` while the files are still untracked.
 
 ## What it discovers
 
