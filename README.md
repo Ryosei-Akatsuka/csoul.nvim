@@ -42,12 +42,15 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
 
 | Key | Action |
 | --- | --- |
-| `j` / `k`, arrows | Move; the highlighted scheme is applied live |
+| `j` / `k`, arrows | Move; only the picker's colours change, the editor keeps its scheme |
 | `/` | Search by name (type, then `<Esc>` or `<CR>` to return to the list) |
 | `<Tab>` / `<S-Tab>` | Cycle ALL / DARK / LIGHT |
-| `<CR>` | Keep the selected scheme and close |
-| `q` / `<Esc>` | Close and restore the scheme that was active before opening |
+| `<CR>` | Apply the selected scheme and close |
+| `q` / `<Esc>` | Close without changing the scheme |
 
+- Each scheme is loaded briefly to read its palette, then the editor's
+  highlights are put back before anything is drawn, so the editor is not
+  repainted while you browse.
 - Schemes come from the same places `:colorscheme` searches: `colors/*.vim` and
   `colors/*.lua` in `runtimepath`, and `pack/*/{start,opt}/*/colors` under
   `packpath`. Schemes that a plugin manager keeps outside those paths are not

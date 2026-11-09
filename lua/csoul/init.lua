@@ -112,7 +112,7 @@ local function refresh()
   end
 
   local light = vim.o.background == "light"
-  local p = entry and palette.show(entry)
+  local p = entry and palette.get(entry)
   if not p then
     p = palette.live(light)
   end
@@ -179,7 +179,7 @@ local function focus_list()
   end
 end
 
-local function close(restore)
+local function close()
   local s = state
   if not s then
     return
@@ -191,20 +191,21 @@ local function close(restore)
       pcall(vim.api.nvim_win_close, win, true)
     end
   end
-  if restore then
-    palette.restore(s.original)
-  end
   if vim.api.nvim_win_is_valid(s.prev_win) then
     pcall(vim.api.nvim_set_current_win, s.prev_win)
   end
 end
 
 local function accept()
-  close(false)
+  local entry = selected_entry()
+  close()
+  if entry then
+    palette.apply(entry.name)
+  end
 end
 
 local function cancel()
-  close(true)
+  close()
 end
 
 local function map(buf, mode, lhs, fn)
@@ -266,7 +267,7 @@ local function watch_windows()
       once = true,
       callback = function()
         vim.schedule(function()
-          close(true)
+          close()
         end)
       end,
     })
@@ -321,7 +322,7 @@ function M.open()
   end
 
   local original = { colors_name = vim.g.colors_name, background = vim.o.background }
-  palette.reset(original.background)
+  palette.reset(original)
   local prev_win = vim.api.nvim_get_current_win()
 
   state = {

@@ -3,8 +3,7 @@ local color = require("csoul.color")
 local M = {}
 
 local cache = {}
-local current = nil
-local base_background = "dark"
+local original = nil
 
 local function group_color(group, key)
   local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = group, link = false })
@@ -60,17 +59,41 @@ local function extract(light, read)
   }
 end
 
-local function apply(name)
-  vim.o.background = base_background
-  local ok, err = pcall(vim.cmd.colorscheme, name)
-  current = ok and name or nil
-  return ok, err
+local function set_scheme(name, silent)
+  vim.o.background = original.background
+  local ok, err = pcall(vim.cmd, { cmd = "colorscheme", args = { name }, mods = { noautocmd = silent } })
+  if not ok then
+    vim.notify("csoul: " .. tostring(err), vim.log.levels.WARN)
+  end
+  return ok
 end
 
-function M.reset(background)
+local function restore_highlights(saved)
+  for name in pairs(vim.api.nvim_get_hl(0, {})) do
+    if saved[name] == nil and not name:find("^Csoul") then
+      vim.api.nvim_set_hl(0, name, {})
+    end
+  end
+  for name, attrs in pairs(saved) do
+    vim.api.nvim_set_hl(0, name, attrs)
+  end
+end
+
+local function restore()
+  vim.g.colors_name = original.colors_name
+  if vim.o.background ~= original.background then
+    vim.o.background = original.background
+  end
+  restore_highlights(original.highlights)
+end
+
+function M.reset(state)
   cache = {}
-  current = nil
-  base_background = background
+  original = {
+    colors_name = state.colors_name,
+    background = state.background,
+    highlights = vim.api.nvim_get_hl(0, {}),
+  }
 end
 
 function M.get(entry)
@@ -78,36 +101,18 @@ function M.get(entry)
   if cached ~= nil then
     return cached or nil
   end
-  local ok, err = apply(entry.name)
-  if not ok then
-    vim.notify("csoul: " .. tostring(err), vim.log.levels.WARN)
-  end
-  local palette = ok and extract(entry.light, true) or false
+  local palette = set_scheme(entry.name, true) and extract(entry.light, true) or false
+  restore()
   cache[entry.name] = palette
   return palette or nil
 end
 
-function M.show(entry)
-  local palette = M.get(entry)
-  if current ~= entry.name then
-    apply(entry.name)
-  end
-  return palette
+function M.apply(name)
+  return set_scheme(name, false)
 end
 
 function M.live(light)
   return extract(light, true)
-end
-
-function M.restore(original)
-  if original.colors_name then
-    apply(original.colors_name)
-  else
-    vim.cmd("highlight clear")
-    vim.g.colors_name = nil
-  end
-  vim.o.background = original.background
-  current = nil
 end
 
 return M
