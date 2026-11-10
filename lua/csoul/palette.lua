@@ -13,6 +13,38 @@ local function group_color(group, key)
   return nil
 end
 
+local SYNTAX = {
+  keyword = { "@keyword", "Keyword", "Statement" },
+  ["function"] = { "@function", "Function" },
+  type = { "@type", "Type" },
+  string = { "@string", "String" },
+  number = { "@number", "Number", "Constant" },
+  operator = { "@operator", "Operator" },
+  variable = { "@variable", "Identifier" },
+  module = { "@module", "Include", "Special" },
+  macro = { "@function.macro", "@macro", "Macro", "PreProc" },
+  punct = { "@punctuation.delimiter", "@punctuation", "Delimiter" },
+}
+
+local function syntax_styles(fg)
+  local styles = {}
+  for role, groups in pairs(SYNTAX) do
+    styles[role] = { fg = fg }
+    for _, group in ipairs(groups) do
+      local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = group, link = false })
+      if ok and hl and hl.fg then
+        styles[role] = {
+          fg = string.format("#%06x", hl.fg),
+          bold = hl.bold or false,
+          italic = hl.italic or false,
+        }
+        break
+      end
+    end
+  end
+  return styles
+end
+
 local function extract(light, read)
   local function first(key, ...)
     if not read then
@@ -56,6 +88,7 @@ local function extract(light, read)
     cyan = cyan,
     mini = { red, amber, green, cyan, accent, violet, fg, muted, surface, border },
     swatches = { bg, fg, accent, violet, green, amber },
+    syntax = syntax_styles(fg),
   }
 end
 

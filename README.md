@@ -38,7 +38,7 @@ nix develop          # python3 + neovim + git
 
 `:Csoul` opens the picker as two floating windows. It needs Neovim 0.10 or
 later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
-106 × 30 cells.
+122 × 38 cells.
 
 | Key | Action |
 | --- | --- |
@@ -58,6 +58,9 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
 - Palettes are read from the highlight groups after each scheme loads
   (`Normal`, `Function`, `Keyword`, `String`, …), so any installed scheme works
   without a table of colours.
+- The syntax sample is a fixed Rust snippet. Each token takes its colour, weight,
+  and italics from the scheme's own groups (`@keyword` → `Keyword` → `Statement`,
+  and so on), falling back to the foreground colour when a group is missing.
 - Light schemes are detected from the scheme file (`background = "light"`) and
   a short list of built-in light schemes.
 

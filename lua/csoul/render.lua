@@ -2,14 +2,61 @@ local color = require("csoul.color")
 
 local M = {}
 
-local W, H = 104, 28
+local W, H = 120, 36
 local LEFT_X, LEFT_W = 3, 40
-local RIGHT_X, RIGHT_W = 47, 54
-local RIGHT_END = RIGHT_X + RIGHT_W - 1
+local RIGHT_X = 47
+local RIGHT_END = W - 4
+local RIGHT_W = RIGHT_END - RIGHT_X + 1
 local HEADER_Y, SEARCH_Y, HEADS_Y = 2, 4, 6
 local LIST_Y, LIST_ROWS = 8, 15
-local FOOTER_Y = 26
+local PANEL_Y, PANEL_ROWS = LIST_Y + 7, 14
+local CODE_Y = PANEL_Y + 1
+local CHIPS_Y = PANEL_Y + PANEL_ROWS + 3
+local FOOTER_Y = H - 2
+local ACTIVE_LINE = 8
+local SAMPLE_FILE = "main.rs"
 local GLYPH = "󱓻"
+
+local SAMPLE = {
+  { { "use", "keyword" }, { " " }, { "std", "module" }, { "::", "punct" }, { "collections", "module" }, { "::", "punct" }, { "HashMap", "type" }, { ";", "punct" } },
+  {},
+  { { "fn", "keyword" }, { " " }, { "main", "function" }, { "() {", "punct" } },
+  {
+    { "    " }, { "let", "keyword" }, { " " }, { "words", "variable" }, { " " }, { "=", "operator" }, { " " },
+    { "[", "punct" }, { '"rust"', "string" }, { ", ", "punct" }, { '"code"', "string" }, { ", ", "punct" },
+    { '"rust"', "string" }, { ", ", "punct" }, { '"design"', "string" }, { ", ", "punct" }, { '"code"', "string" }, { "];", "punct" },
+  },
+  {
+    { "    " }, { "let", "keyword" }, { " " }, { "mut", "keyword" }, { " " }, { "counts", "variable" }, { " " }, { "=", "operator" },
+    { " " }, { "HashMap", "type" }, { "::", "punct" }, { "new", "function" }, { "();", "punct" },
+  },
+  {},
+  {
+    { "    " }, { "for", "keyword" }, { " " }, { "word", "variable" }, { " " }, { "in", "keyword" }, { " " },
+    { "words", "variable" }, { " {", "punct" },
+  },
+  {
+    { "        " }, { "*", "operator" }, { "counts", "variable" }, { ".", "punct" }, { "entry", "function" }, { "(", "punct" },
+    { "word", "variable" }, { ").", "punct" }, { "or_insert", "function" }, { "(", "punct" }, { "0", "number" }, { ")", "punct" },
+    { " " }, { "+=", "operator" }, { " " }, { "1", "number" }, { ";", "punct" },
+  },
+  { { "    }", "punct" } },
+  {},
+  {
+    { "    " }, { "let", "keyword" }, { " " }, { "mut", "keyword" }, { " " }, { "ranked", "variable" }, { ": ", "punct" },
+    { "Vec", "type" }, { "<_>", "punct" }, { " " }, { "=", "operator" }, { " " }, { "counts", "variable" }, { ".", "punct" },
+    { "into_iter", "function" }, { "()", "punct" }, { ".", "punct" }, { "collect", "function" }, { "();", "punct" },
+  },
+  {
+    { "    " }, { "ranked", "variable" }, { ".", "punct" }, { "sort_by_key", "function" }, { "(|(_, ", "punct" },
+    { "count", "variable" }, { ")| ", "punct" }, { "std::cmp::", "module" }, { "Reverse", "type" }, { "(", "punct" },
+    { "*", "operator" }, { "count", "variable" }, { "));", "punct" },
+  },
+  {
+    { "    " }, { "println!", "macro" }, { "(", "punct" }, { '"{ranked:?}"', "string" }, { ");", "punct" },
+  },
+  { { "}", "punct" } },
+}
 
 M.W, M.H = W, H
 M.LEFT_X, M.SEARCH_Y, M.LIST_Y, M.LIST_ROWS = LEFT_X, SEARCH_Y, LIST_Y, LIST_ROWS
@@ -232,50 +279,39 @@ local function draw_preview(c, p, entry)
 
   local label_y = LIST_Y + 6
   c:put(RIGHT_X + 1, label_y, "Syntax", { fg = section })
-  c:put(RIGHT_END - 8 + 1, label_y, "init.lua", { fg = color.mix(p.fg, p.bg, 0.70) })
+  c:put(RIGHT_END - width(SAMPLE_FILE) + 1, label_y, SAMPLE_FILE, { fg = color.mix(p.fg, p.bg, 0.70) })
 
-  local panel_bg = color.mix(p.bg, "#000000", 0.30)
-  local panel_y = LIST_Y + 7
-  local punct = color.mix(p.fg, panel_bg, 0.25)
-  c:fill(RIGHT_X, panel_y, RIGHT_W, 5, panel_bg)
-  c:fill(RIGHT_X, panel_y + 3, RIGHT_W, 1, color.mix(panel_bg, p.accent, 0.065))
+  local panel_bg = entry.light and p.bg or color.mix(p.bg, "#000000", 0.30)
+  local bottom_y = PANEL_Y + PANEL_ROWS + 1
+  c:fill(RIGHT_X, PANEL_Y, RIGHT_W, PANEL_ROWS + 2, panel_bg)
+  local inset = entry.light and 1 or 0
+  c:fill(RIGHT_X + inset, CODE_Y + ACTIVE_LINE - 1, RIGHT_W - 2 * inset, 1, color.mix(panel_bg, p.accent, 0.065))
 
-  for i = 0, 4 do
-    c:put(RIGHT_X + 2, panel_y + i, string.format("%2d", i + 1), {
-      fg = i == 3 and p.amber or color.mix(p.fg, panel_bg, 0.62),
-      bold = i == 3,
-    })
+  if entry.light then
+    local edge = { fg = p.border }
+    c:put(RIGHT_X, PANEL_Y, "┌" .. string.rep("─", RIGHT_W - 2) .. "┐", edge)
+    for y = CODE_Y, bottom_y - 1 do
+      c:put(RIGHT_X, y, "│", edge)
+      c:put(RIGHT_END, y, "│", edge)
+    end
+    c:put(RIGHT_X, bottom_y, "└" .. string.rep("─", RIGHT_W - 2) .. "┘", edge)
   end
 
-  local code = {
-    { { "-- ~/.config/nvim/init.lua", p.muted, true } },
-    { { "local", p.violet, true }, { " M", p.fg, false }, { " = {}", punct, false } },
-    {
-      { "function", p.violet, true },
-      { " M.setup", p.accent, false },
-      { "(", punct, false },
-      { "opts", p.amber, false },
-      { ")", punct, false },
-    },
-    {
-      { "  vim", p.cyan, false },
-      { ".cmd.colorscheme", p.accent, false },
-      { "(", punct, false },
-      { '"' .. entry.name .. '"', p.green, false },
-      { ")", punct, false },
-    },
-    { { "end", p.violet, true } },
-  }
-  for i, segments in ipairs(code) do
+  for i, segments in ipairs(SAMPLE) do
+    local y = CODE_Y + i - 1
+    c:put(RIGHT_X + 2, y, string.format("%2d", i), {
+      fg = i == ACTIVE_LINE and p.amber or color.mix(p.fg, panel_bg, 0.62),
+      bold = i == ACTIVE_LINE,
+    })
     local x = RIGHT_X + 5
     for _, segment in ipairs(segments) do
-      c:put(x, panel_y + i - 1, segment[1], { fg = segment[2], italic = segment[3] })
+      local style = segment[2] and p.syntax[segment[2]] or { fg = p.fg }
+      c:put(x, y, segment[1], { fg = style.fg, bold = style.bold, italic = style.italic })
       x = x + width(segment[1])
     end
   end
 
-  local chips_y = LIST_Y + 13
-  c:put(RIGHT_X + 1, chips_y, "UI", { fg = section })
+  c:put(RIGHT_X + 1, CHIPS_Y, "UI", { fg = section })
   local x = RIGHT_X + 12
   local error_bg = color.mix(p.surface, p.bg, 0.16)
   local ui_chips = {
@@ -287,7 +323,7 @@ local function draw_preview(c, p, entry)
   }
   for _, chip in ipairs(ui_chips) do
     local text = " " .. chip[1] .. " "
-    c:put(x, chips_y, text, { fg = chip[3], bg = chip[2] })
+    c:put(x, CHIPS_Y, text, { fg = chip[3], bg = chip[2] })
     x = x + width(text) + 1
   end
 end
