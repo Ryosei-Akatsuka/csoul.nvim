@@ -200,7 +200,7 @@ local function accept()
   local entry = selected_entry()
   close()
   if entry then
-    palette.apply(entry.name)
+    palette.apply(entry)
   end
 end
 
@@ -314,6 +314,12 @@ function M.open()
     return
   end
 
+  local original = { colors_name = vim.g.colors_name, background = vim.o.background }
+  palette.reset(original)
+  for _, entry in ipairs(entries) do
+    palette.get(entry)
+  end
+
   local light = 0
   for _, entry in ipairs(entries) do
     if entry.light then
@@ -321,8 +327,6 @@ function M.open()
     end
   end
 
-  local original = { colors_name = vim.g.colors_name, background = vim.o.background }
-  palette.reset(original)
   local prev_win = vim.api.nvim_get_current_win()
 
   state = {

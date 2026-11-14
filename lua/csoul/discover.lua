@@ -29,6 +29,10 @@ local function source_of(path)
   return "colors directory"
 end
 
+local function opt_package_of(path)
+  return path:match("/pack/[^/]+/opt/([^/]+)/colors/")
+end
+
 local function origin_of(source)
   if source == "nvim runtime" then
     return "CORE"
@@ -67,11 +71,29 @@ local PACK_PATTERNS = {
   "pack/*/opt/*/colors/*.lua",
 }
 
-local function scheme_files()
-  local files = {}
-  for _, pattern in ipairs({ "colors/*.vim", "colors/*.lua" }) do
-    vim.list_extend(files, vim.api.nvim_get_runtime_file(pattern, true))
+local function runtime_scheme_files()
+  local dirs, by_dir = {}, {}
+  for _, path in ipairs(vim.api.nvim_get_runtime_file("colors/*", true)) do
+    local ext = path:match("%.(%a+)$")
+    if ext == "vim" or ext == "lua" then
+      local dir = vim.fs.dirname(path)
+      if not by_dir[dir] then
+        by_dir[dir] = { vim = {}, lua = {} }
+        dirs[#dirs + 1] = dir
+      end
+      table.insert(by_dir[dir][ext], path)
+    end
   end
+  local files = {}
+  for _, dir in ipairs(dirs) do
+    vim.list_extend(files, by_dir[dir].vim)
+    vim.list_extend(files, by_dir[dir].lua)
+  end
+  return files
+end
+
+local function scheme_files()
+  local files = runtime_scheme_files()
   for _, packpath in ipairs(vim.opt.packpath:get()) do
     for _, pattern in ipairs(PACK_PATTERNS) do
       vim.list_extend(files, vim.fn.globpath(packpath, pattern, false, true))
@@ -99,6 +121,7 @@ function M.schemes()
       name = name,
       path = path,
       source = source,
+      package = opt_package_of(path),
       origin = origin_of(source),
       light = is_light(name, path, source),
     }

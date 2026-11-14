@@ -49,20 +49,32 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
 | `q` / `<Esc>` | Close without changing the scheme |
 
 - Each scheme is loaded briefly to read its palette, then the editor's
-  highlights are put back before anything is drawn, so the editor is not
-  repainted while you browse.
+  highlights, `vim.g` variables, and `runtimepath` are put back before anything
+  is drawn, so the editor is not repainted while you browse and one scheme's
+  state does not leak into the next.
+- Every scheme is loaded once when the picker opens, so the counts and the
+  LIGHT/DARK tags come from what each scheme actually renders. This takes a
+  moment on large installations.
 - Schemes come from the same places `:colorscheme` searches: `colors/*.vim` and
   `colors/*.lua` in `runtimepath`, and `pack/*/{start,opt}/*/colors` under
   `packpath`. Schemes that a plugin manager keeps outside those paths are not
-  listed, because Neovim cannot apply them.
+  listed, because Neovim cannot apply them. When several files share a name,
+  the first one `:colorscheme` would load is listed, and that same file is
+  loaded for preview and apply.
+- Before a scheme loads, its plugin directory is put first on `runtimepath`, and
+  Lua modules that the scheme's plugin loaded during browsing are unloaded, so
+  each preview matches a fresh `:colorscheme`. Modules that were already loaded
+  when the picker opened are kept, as in a real apply.
 - Palettes are read from the highlight groups after each scheme loads
   (`Normal`, `Function`, `Keyword`, `String`, …), so any installed scheme works
   without a table of colours.
+- A scheme is LIGHT when its `Normal` background is light (relative luminance
+  above 0.179, where black and white text have equal contrast). Schemes that
+  leave `Normal` without a background use `background` to decide, and show black
+  or white as the background.
 - The syntax sample is a fixed Rust snippet. Each token takes its colour, weight,
   and italics from the scheme's own groups (`@keyword` → `Keyword` → `Statement`,
   and so on), falling back to the foreground colour when a group is missing.
-- Light schemes are detected from the scheme file (`background = "light"`) and
-  a short list of built-in light schemes.
 
 Nix provides the plugin as `packages.<system>.nvim-plugin`, built with
 `vimUtils.buildVimPlugin`:

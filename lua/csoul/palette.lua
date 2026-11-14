@@ -3,7 +3,9 @@ local color = require("csoul.color")
 local M = {}
 
 local cache = {}
+local baseline = {}
 local original = nil
+local LIGHT_LUMINANCE = 0.179
 
 local function group_color(group, key)
   local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = group, link = false })
@@ -45,7 +47,7 @@ local function syntax_styles(fg)
   return styles
 end
 
-local function extract(light, read)
+local function extract(background_light, read)
   local function first(key, ...)
     if not read then
       return nil
@@ -59,7 +61,12 @@ local function extract(light, read)
     return nil
   end
 
-  local bg = first("bg", "Normal") or (light and "#ffffff" or "#000000")
+  local measured = first("bg", "Normal")
+  local light = background_light
+  if measured then
+    light = color.luminance(measured) > LIGHT_LUMINANCE
+  end
+  local bg = measured or (light and "#ffffff" or "#000000")
   local fg = first("fg", "Normal") or (light and "#000000" or "#c0c0c0")
   local accent = first("fg", "Function", "Title", "Identifier") or fg
   local amber = first("fg", "Number", "Constant", "Boolean") or fg
@@ -92,9 +99,66 @@ local function extract(light, read)
   }
 end
 
-local function set_scheme(name, silent)
+local function scheme_root(entry)
+  return entry.path:match("^(.*)/colors/[^/]+$")
+end
+
+local function forget_modules(root)
+  if not root then
+    return
+  end
+  local pattern = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua"
+  for name in pairs(package.loaded) do
+    if type(name) == "string" and not baseline[name] and package.searchpath(name, pattern) then
+      package.loaded[name] = nil
+    end
+  end
+end
+
+local function global_names()
+  local names = {}
+  for _, name in ipairs(vim.fn.getcompletion("g:", "var")) do
+    names[#names + 1] = name:sub(3)
+  end
+  return names
+end
+
+local function save_globals()
+  local saved = {}
+  for _, name in ipairs(global_names()) do
+    saved[name] = vim.g[name]
+  end
+  return saved
+end
+
+local function restore_globals(saved)
+  for _, name in ipairs(global_names()) do
+    if saved[name] == nil then
+      vim.g[name] = nil
+    end
+  end
+  for name, value in pairs(saved) do
+    if vim.g[name] ~= value then
+      vim.g[name] = value
+    end
+  end
+end
+
+local function set_scheme(entry, silent)
+  local runtimepath = vim.o.runtimepath
+  local root = scheme_root(entry)
+  if entry.package then
+    pcall(vim.cmd.packadd, entry.package)
+  end
+  if root then
+    vim.opt.runtimepath:prepend(root)
+  end
+  forget_modules(entry.origin == "PLUGIN" and root or nil)
   vim.o.background = original.background
-  local ok, err = pcall(vim.cmd, { cmd = "colorscheme", args = { name }, mods = { noautocmd = silent } })
+  local ok, err = pcall(vim.cmd, { cmd = "colorscheme", args = { entry.name }, mods = { noautocmd = silent } })
+  if silent then
+    vim.o.runtimepath = runtimepath
+  end
   if not ok then
     vim.notify("csoul: " .. tostring(err), vim.log.levels.WARN)
   end
@@ -122,6 +186,10 @@ end
 
 function M.reset(state)
   cache = {}
+  baseline = {}
+  for name in pairs(package.loaded) do
+    baseline[name] = true
+  end
   original = {
     colors_name = state.colors_name,
     background = state.background,
@@ -134,14 +202,22 @@ function M.get(entry)
   if cached ~= nil then
     return cached or nil
   end
-  local palette = set_scheme(entry.name, true) and extract(entry.light, true) or false
+  local globals = save_globals()
+  local palette = false
+  if set_scheme(entry, true) then
+    palette = extract(vim.o.background == "light", true)
+  end
   restore()
+  restore_globals(globals)
+  if palette then
+    entry.light = palette.light
+  end
   cache[entry.name] = palette
   return palette or nil
 end
 
-function M.apply(name)
-  return set_scheme(name, false)
+function M.apply(entry)
+  return set_scheme(entry, false)
 end
 
 function M.live(light)
