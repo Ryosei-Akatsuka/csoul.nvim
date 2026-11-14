@@ -52,9 +52,10 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
   highlights, `vim.g` variables, and `runtimepath` are put back before anything
   is drawn, so the editor is not repainted while you browse and one scheme's
   state does not leak into the next.
-- Every scheme is loaded once when the picker opens, so the counts and the
-  LIGHT/DARK tags come from what each scheme actually renders. This takes a
-  moment on large installations.
+- Schemes are measured in the background after the picker opens, a few at a
+  time. Until a scheme is measured its LIGHT/DARK tag and the counts use a
+  guess from the scheme file, and the header shows how many are left to
+  measure. The counts and tags settle to what each scheme actually renders.
 - Schemes come from the same places `:colorscheme` searches: `colors/*.vim` and
   `colors/*.lua` in `runtimepath`, and `pack/*/{start,opt}/*/colors` under
   `packpath`. Schemes that a plugin manager keeps outside those paths are not

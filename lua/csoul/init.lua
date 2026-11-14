@@ -7,6 +7,8 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("csoul")
 local FILTERS = { "all", "dark", "light" }
+local LOAD_CHUNK = 3
+local LOAD_DELAY = 10
 local cell_groups = {}
 local cell_count = 0
 local state = nil
@@ -103,7 +105,62 @@ local function refresh_input()
   end
 end
 
+local function measure(entry)
+  if not entry then
+    return nil
+  end
+  if state.measured[entry.name] then
+    return palette.get(entry)
+  end
+  local before = entry.light
+  local p = palette.get(entry)
+  state.measured[entry.name] = true
+  if entry.light ~= before then
+    state.light_changed = true
+  end
+  return p
+end
+
+local function pending_count()
+  local n = 0
+  for _, entry in ipairs(state.entries) do
+    if not state.measured[entry.name] then
+      n = n + 1
+    end
+  end
+  return n
+end
+
+local function recount()
+  local light = 0
+  for _, entry in ipairs(state.entries) do
+    if entry.light then
+      light = light + 1
+    end
+  end
+  state.counts = { all = #state.entries, dark = #state.entries - light, light = light }
+end
+
+local function settle()
+  for _ = 1, 10 do
+    local entry = selected_entry()
+    measure(entry)
+    for i = state.top + 1, math.min(#state.filtered, state.top + render.LIST_ROWS) do
+      measure(state.filtered[i])
+    end
+    if not state.light_changed then
+      return
+    end
+    state.light_changed = false
+    recount()
+    if state.filter ~= "all" then
+      refilter(entry and entry.name)
+    end
+  end
+end
+
 local function refresh()
+  settle()
   local entry = selected_entry()
   local rows = {}
   for i = state.top + 1, math.min(#state.filtered, state.top + render.LIST_ROWS) do
@@ -132,6 +189,7 @@ local function refresh()
     counts = state.counts,
     filter = state.filter,
     detected = #state.entries,
+    pending = pending_count(),
     version = version(),
   })
   paint(state.list_buf, lines, runs)
@@ -140,6 +198,28 @@ local function refresh()
   if state.selected > 0 and vim.api.nvim_win_is_valid(state.list_win) then
     local row = render.LIST_Y + state.selected - state.top
     pcall(vim.api.nvim_win_set_cursor, state.list_win, { row, 0 })
+  end
+end
+
+local function load_next(token)
+  if not state or state.token ~= token then
+    return
+  end
+  local loaded = 0
+  for _, entry in ipairs(state.entries) do
+    if not state.measured[entry.name] then
+      measure(entry)
+      loaded = loaded + 1
+      if loaded == LOAD_CHUNK then
+        break
+      end
+    end
+  end
+  refresh()
+  if pending_count() > 0 then
+    vim.defer_fn(function()
+      load_next(token)
+    end, LOAD_DELAY)
   end
 end
 
@@ -316,9 +396,6 @@ function M.open()
 
   local original = { colors_name = vim.g.colors_name, background = vim.o.background }
   palette.reset(original)
-  for _, entry in ipairs(entries) do
-    palette.get(entry)
-  end
 
   local light = 0
   for _, entry in ipairs(entries) do
@@ -332,6 +409,9 @@ function M.open()
   state = {
     entries = entries,
     counts = { all = #entries, dark = #entries - light, light = light },
+    measured = {},
+    light_changed = false,
+    token = {},
     query = "",
     filter = "all",
     filtered = {},
@@ -351,7 +431,7 @@ function M.open()
   vim.wo[state.list_win].cursorline = false
   vim.wo[state.list_win].signcolumn = "no"
 
-  local field = render.field(state.counts)
+  local field = render.field(#entries)
   state.input_buf = create_buffer()
   state.input_win = vim.api.nvim_open_win(
     state.input_buf,
@@ -366,6 +446,10 @@ function M.open()
 
   refilter(original.colors_name)
   refresh()
+  local token = state.token
+  vim.defer_fn(function()
+    load_next(token)
+  end, 0)
 end
 
 return M

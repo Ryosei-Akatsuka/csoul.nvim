@@ -89,9 +89,10 @@ local function chip_start(counts)
   return RIGHT_END - total + 1
 end
 
-function M.field(counts)
+function M.field(total)
   local x = LEFT_X + 3
-  return { x = x, y = SEARCH_Y, width = (chip_start(counts) - 2) - x + 1 }
+  local widest = { all = total, dark = total, light = total }
+  return { x = x, y = SEARCH_Y, width = (chip_start(widest) - 2) - x + 1 }
 end
 
 local Canvas = {}
@@ -183,7 +184,9 @@ end
 
 local function draw_header(c, p, view)
   local rest
-  if view.detected > 0 then
+  if view.detected > 0 and view.pending > 0 then
+    rest = string.format("%d detected · measuring %d · nvim %s", view.detected, view.pending, view.version)
+  elseif view.detected > 0 then
     rest = string.format("%d detected · nvim %s", view.detected, view.version)
   else
     rest = "no colorschemes found"
