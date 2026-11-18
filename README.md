@@ -48,14 +48,19 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
 | `<CR>` | Apply the selected scheme and close |
 | `q` / `<Esc>` | Close without changing the scheme |
 
-- Each scheme is loaded briefly to read its palette, then the editor's
-  highlights, `vim.g` variables, and `runtimepath` are put back before anything
-  is drawn, so the editor is not repainted while you browse and one scheme's
-  state does not leak into the next.
-- Schemes are measured in the background after the picker opens, a few at a
-  time. Until a scheme is measured its LIGHT/DARK tag and the counts use a
-  guess from the scheme file, and the header shows how many are left to
-  measure. The counts and tags settle to what each scheme actually renders.
+- Each scheme is measured in a separate headless Neovim started with the same
+  configuration. That process applies the scheme the way `<CR>` does (lazy.nvim
+  loads its plugin first, so `opts` and `setup()` run) and reads the palette
+  from the result. The editor is never touched while you browse, and one
+  scheme's state cannot leak into another scheme's measurement, so the colours
+  shown match what applying the scheme gives.
+- Schemes are measured in the background after the picker opens, up to four at
+  a time, with the visible rows and the selection first. Until a scheme is
+  measured its LIGHT/DARK tag and the counts use a guess from the scheme file,
+  and the header shows how many are left to measure. The counts and tags settle
+  to what each scheme actually renders. Measured palettes are kept for the rest
+  of the session, so restart Neovim to re-measure after changing the
+  configuration.
 - Schemes come from the same places `:colorscheme` searches: `colors/*.vim` and
   `colors/*.lua` in `runtimepath`, and `pack/*/{start,opt}/*/colors` under
   `packpath`. With lazy.nvim, the `colors` of plugins that are not loaded yet
@@ -64,12 +69,9 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
   managers keep outside these paths are not listed. When several files share a
   name, the first one `:colorscheme` would load is listed, and that same file is
   loaded for preview and apply.
-- Before a scheme loads, its plugin directory is put first on `runtimepath`, and
-  Lua modules that the scheme's plugin loaded during browsing are unloaded, so
-  each preview matches a fresh `:colorscheme`. Modules that were already loaded
-  when the picker opened are kept, as in a real apply. If a preview fails for a
-  lazy.nvim plugin that needs `setup()`, that plugin is loaded through lazy.nvim
-  and its modules are kept from then on.
+- Applying a scheme with `<CR>` happens in the current session: its plugin
+  directory is put first on `runtimepath`, a lazy.nvim plugin is loaded first,
+  and then `:colorscheme` runs with autocmds, as usual.
 - Palettes are read from the highlight groups after each scheme loads
   (`Normal`, `Function`, `Keyword`, `String`, …), so any installed scheme works
   without a table of colours.

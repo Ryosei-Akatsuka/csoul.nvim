@@ -3,9 +3,19 @@ local color = require("csoul.color")
 local M = {}
 
 local cache = {}
-local baseline = {}
+local waiting = {}
+local queue = {}
+local pending = {}
+local running = 0
 local original = nil
 local LIGHT_LUMINANCE = 0.179
+local MAX_JOBS = 4
+local ROOT = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+local PROBE = table.concat({
+  "lua for name in pairs(package.loaded) do if name:find('^csoul') then package.loaded[name] = nil end end",
+  "table.insert(package.loaders or package.searchers, 1, function(name) local file = package.searchpath(name, vim.env.CSOUL_ROOT .. '/lua/?.lua') if file then return loadfile(file) end end)",
+  "require('csoul.palette').probe()",
+}, "; ")
 
 local function group_color(group, key)
   local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = group, link = false })
@@ -103,52 +113,6 @@ local function scheme_root(entry)
   return entry.path:match("^(.*)/colors/[^/]+$")
 end
 
-local function forget_modules(root)
-  if not root then
-    return
-  end
-  local pattern = root .. "/lua/?.lua;" .. root .. "/lua/?/init.lua"
-  for name in pairs(package.loaded) do
-    if type(name) == "string" and not baseline[name] and package.searchpath(name, pattern) then
-      package.loaded[name] = nil
-    end
-  end
-end
-
-local function global_names()
-  local names = {}
-  for _, name in ipairs(vim.fn.getcompletion("g:", "var")) do
-    names[#names + 1] = name:sub(3)
-  end
-  return names
-end
-
-local function save_globals()
-  local saved = {}
-  for _, name in ipairs(global_names()) do
-    saved[name] = vim.g[name]
-  end
-  return saved
-end
-
-local kept_globals = {}
-
-local function restore_globals(saved)
-  for _, name in ipairs(global_names()) do
-    if saved[name] == nil then
-      vim.g[name] = nil
-    end
-  end
-  for name, value in pairs(saved) do
-    if vim.g[name] ~= value then
-      vim.g[name] = value
-    end
-  end
-  for name, value in pairs(kept_globals) do
-    vim.g[name] = value
-  end
-end
-
 local function lazy_load(entry)
   if not entry.lazy or not package.loaded.lazy then
     return false
@@ -157,107 +121,170 @@ local function lazy_load(entry)
   if not plugin or plugin._.loaded then
     return false
   end
-  local before = save_globals()
   require("lazy").load({ plugins = { entry.lazy } })
-  for name, value in pairs(save_globals()) do
-    if before[name] ~= value then
-      kept_globals[name] = value
-    end
-  end
-  for name in pairs(package.loaded) do
-    baseline[name] = true
-  end
   return true
 end
 
-local function colorscheme(entry, silent)
-  return pcall(vim.cmd, { cmd = "colorscheme", args = { entry.name }, mods = { noautocmd = silent } })
-end
-
-local function set_scheme(entry, silent)
-  if not silent then
-    lazy_load(entry)
-  end
-  local runtimepath = vim.o.runtimepath
-  local root = scheme_root(entry)
+local function set_scheme(entry)
+  lazy_load(entry)
   if entry.package then
     pcall(vim.cmd.packadd, entry.package)
   end
+  local root = scheme_root(entry)
   if root then
     vim.opt.runtimepath:prepend(root)
   end
-  forget_modules(entry.origin == "PLUGIN" and root or nil)
   vim.o.background = original.background
-  local ok, err = colorscheme(entry, silent)
-  local loaded = false
-  if silent and not ok then
-    loaded = lazy_load(entry)
-    if loaded then
-      ok, err = colorscheme(entry, silent)
-    end
-  end
-  if silent and not loaded then
-    vim.o.runtimepath = runtimepath
-  end
+  local ok, err = pcall(vim.cmd, { cmd = "colorscheme", args = { entry.name } })
   if not ok then
     vim.notify("csoul: " .. tostring(err), vim.log.levels.WARN)
   end
   return ok
 end
 
-local function restore_highlights(saved)
-  for name in pairs(vim.api.nvim_get_hl(0, {})) do
-    if saved[name] == nil and not name:find("^Csoul") then
-      vim.api.nvim_set_hl(0, name, {})
-    end
+local function read_result(path)
+  local ok, lines = pcall(vim.fn.readfile, path)
+  if not ok or not lines[1] then
+    return nil
   end
-  for name, attrs in pairs(saved) do
-    vim.api.nvim_set_hl(0, name, attrs)
+  local decoded, data = pcall(vim.json.decode, lines[1])
+  if decoded and type(data) == "table" and data.light ~= nil then
+    return data
   end
+  return nil
 end
 
-local function restore()
-  vim.g.colors_name = original.colors_name
-  if vim.o.background ~= original.background then
-    vim.o.background = original.background
+local function finish(entry, result)
+  running = running - 1
+  pending[entry.name] = nil
+  cache[entry.name] = result or false
+  if result then
+    entry.light = result.light
   end
-  restore_highlights(original.highlights)
+  local callbacks = waiting[entry.name] or {}
+  waiting[entry.name] = nil
+  for _, callback in ipairs(callbacks) do
+    callback(result)
+  end
+  M.pump()
+end
+
+local function run_job(entry)
+  local path = vim.fn.tempname()
+  vim.system({
+    vim.v.progpath,
+    "--headless",
+    "-n",
+    "-i",
+    "NONE",
+    "-c",
+    PROBE,
+  }, {
+    env = {
+      CSOUL_ROOT = ROOT,
+      CSOUL_SCHEME = entry.name,
+      CSOUL_OUT = path,
+      CSOUL_BACKGROUND = original.background,
+    },
+    timeout = 30000,
+  }, function()
+    vim.schedule(function()
+      local result = read_result(path)
+      pcall(vim.fn.delete, path)
+      finish(entry, result)
+    end)
+  end)
+end
+
+function M.pump()
+  while running < MAX_JOBS and #queue > 0 do
+    local entry = table.remove(queue, 1)
+    running = running + 1
+    run_job(entry)
+  end
 end
 
 function M.reset(state)
-  cache = {}
-  baseline = {}
-  for name in pairs(package.loaded) do
-    baseline[name] = true
-  end
   original = {
     colors_name = state.colors_name,
     background = state.background,
-    highlights = vim.api.nvim_get_hl(0, {}),
   }
 end
 
-function M.get(entry)
-  local cached = cache[entry.name]
-  if cached ~= nil then
-    return cached or nil
+function M.cached(entry)
+  return cache[entry.name] or nil
+end
+
+function M.measure(entry, callback, urgent)
+  local name = entry.name
+  if cache[name] ~= nil then
+    if callback then
+      vim.schedule(function()
+        callback(cache[name] or nil)
+      end)
+    end
+    return
   end
-  local globals = save_globals()
-  local palette = false
-  if set_scheme(entry, true) then
-    palette = extract(vim.o.background == "light", true)
+  if callback then
+    waiting[name] = waiting[name] or {}
+    table.insert(waiting[name], callback)
   end
-  restore()
-  restore_globals(globals)
-  if palette then
-    entry.light = palette.light
+  if pending[name] then
+    if urgent then
+      for i, queued in ipairs(queue) do
+        if queued.name == name then
+          table.remove(queue, i)
+          table.insert(queue, 1, queued)
+          break
+        end
+      end
+    end
+    return
   end
-  cache[entry.name] = palette
-  return palette or nil
+  pending[name] = true
+  if urgent then
+    table.insert(queue, 1, entry)
+  else
+    queue[#queue + 1] = entry
+  end
+  M.pump()
+end
+
+function M.probe()
+  local function run()
+    local ok, err = pcall(function()
+      local name = vim.env.CSOUL_SCHEME
+      local entry
+      for _, candidate in ipairs(require("csoul.discover").schemes()) do
+        if candidate.name == name then
+          entry = candidate
+          break
+        end
+      end
+      if not entry then
+        error("colorscheme not found: " .. tostring(name))
+      end
+      M.reset({ colors_name = vim.g.colors_name, background = vim.env.CSOUL_BACKGROUND or vim.o.background })
+      if not set_scheme(entry) then
+        error("colorscheme failed: " .. entry.name)
+      end
+      local palette = M.live(vim.o.background == "light")
+      vim.fn.writefile({ vim.json.encode(palette) }, vim.env.CSOUL_OUT)
+    end)
+    if not ok then
+      vim.fn.writefile({ vim.json.encode({ error = tostring(err) }) }, vim.env.CSOUL_OUT)
+    end
+    vim.cmd("qa!")
+  end
+  if vim.v.vim_did_enter == 1 then
+    run()
+  else
+    vim.api.nvim_create_autocmd("VimEnter", { once = true, nested = true, callback = run })
+  end
 end
 
 function M.apply(entry)
-  return set_scheme(entry, false)
+  return set_scheme(entry)
 end
 
 function M.live(light)
