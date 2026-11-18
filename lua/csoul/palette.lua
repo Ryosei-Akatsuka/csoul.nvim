@@ -131,6 +131,8 @@ local function save_globals()
   return saved
 end
 
+local kept_globals = {}
+
 local function restore_globals(saved)
   for _, name in ipairs(global_names()) do
     if saved[name] == nil then
@@ -142,9 +144,40 @@ local function restore_globals(saved)
       vim.g[name] = value
     end
   end
+  for name, value in pairs(kept_globals) do
+    vim.g[name] = value
+  end
+end
+
+local function lazy_load(entry)
+  if not entry.lazy or not package.loaded.lazy then
+    return false
+  end
+  local plugin = require("lazy.core.config").plugins[entry.lazy]
+  if not plugin or plugin._.loaded then
+    return false
+  end
+  local before = save_globals()
+  require("lazy").load({ plugins = { entry.lazy } })
+  for name, value in pairs(save_globals()) do
+    if before[name] ~= value then
+      kept_globals[name] = value
+    end
+  end
+  for name in pairs(package.loaded) do
+    baseline[name] = true
+  end
+  return true
+end
+
+local function colorscheme(entry, silent)
+  return pcall(vim.cmd, { cmd = "colorscheme", args = { entry.name }, mods = { noautocmd = silent } })
 end
 
 local function set_scheme(entry, silent)
+  if not silent then
+    lazy_load(entry)
+  end
   local runtimepath = vim.o.runtimepath
   local root = scheme_root(entry)
   if entry.package then
@@ -155,8 +188,15 @@ local function set_scheme(entry, silent)
   end
   forget_modules(entry.origin == "PLUGIN" and root or nil)
   vim.o.background = original.background
-  local ok, err = pcall(vim.cmd, { cmd = "colorscheme", args = { entry.name }, mods = { noautocmd = silent } })
-  if silent then
+  local ok, err = colorscheme(entry, silent)
+  local loaded = false
+  if silent and not ok then
+    loaded = lazy_load(entry)
+    if loaded then
+      ok, err = colorscheme(entry, silent)
+    end
+  end
+  if silent and not loaded then
     vim.o.runtimepath = runtimepath
   end
   if not ok then

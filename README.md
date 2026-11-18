@@ -58,14 +58,18 @@ later (only 0.12.5 has been tested), `termguicolors`, and an editor of at least
   measure. The counts and tags settle to what each scheme actually renders.
 - Schemes come from the same places `:colorscheme` searches: `colors/*.vim` and
   `colors/*.lua` in `runtimepath`, and `pack/*/{start,opt}/*/colors` under
-  `packpath`. Schemes that a plugin manager keeps outside those paths are not
-  listed, because Neovim cannot apply them. When several files share a name,
-  the first one `:colorscheme` would load is listed, and that same file is
+  `packpath`. With lazy.nvim, the `colors` of plugins that are not loaded yet
+  are listed too. Applying one of them loads its plugin through lazy.nvim
+  first, so the plugin's `opts` and `setup()` run. Schemes that other plugin
+  managers keep outside these paths are not listed. When several files share a
+  name, the first one `:colorscheme` would load is listed, and that same file is
   loaded for preview and apply.
 - Before a scheme loads, its plugin directory is put first on `runtimepath`, and
   Lua modules that the scheme's plugin loaded during browsing are unloaded, so
   each preview matches a fresh `:colorscheme`. Modules that were already loaded
-  when the picker opened are kept, as in a real apply.
+  when the picker opened are kept, as in a real apply. If a preview fails for a
+  lazy.nvim plugin that needs `setup()`, that plugin is loaded through lazy.nvim
+  and its modules are kept from then on.
 - Palettes are read from the highlight groups after each scheme loads
   (`Normal`, `Function`, `Keyword`, `String`, …), so any installed scheme works
   without a table of colours.

@@ -7,11 +7,15 @@ local KNOWN_LIGHT = vim.tbl_extend("force", CORE_LIGHT, {
   ["modus_operandi"] = true,
 })
 
+local function lazy_name(path)
+  return path:match("/lazy/([^/]+)/colors/")
+end
+
 local function source_of(path)
   if path:find("/nvim/runtime/colors/", 1, true) then
     return "nvim runtime"
   end
-  local lazy = path:match("/lazy/([^/]+)/colors/")
+  local lazy = lazy_name(path)
   if lazy then
     return lazy
   end
@@ -92,8 +96,24 @@ local function runtime_scheme_files()
   return files
 end
 
+local function lazy_scheme_files()
+  if not package.loaded.lazy then
+    return {}
+  end
+  local dirs = vim.deepcopy(require("lazy.core.util").get_unloaded_rtp(""))
+  table.sort(dirs)
+  local files = {}
+  for _, dir in ipairs(dirs) do
+    for _, ext in ipairs({ "vim", "lua" }) do
+      vim.list_extend(files, vim.fn.globpath(dir, "colors/*." .. ext, false, true))
+    end
+  end
+  return files
+end
+
 local function scheme_files()
   local files = runtime_scheme_files()
+  vim.list_extend(files, lazy_scheme_files())
   for _, packpath in ipairs(vim.opt.packpath:get()) do
     for _, pattern in ipairs(PACK_PATTERNS) do
       vim.list_extend(files, vim.fn.globpath(packpath, pattern, false, true))
@@ -122,6 +142,7 @@ function M.schemes()
       path = path,
       source = source,
       package = opt_package_of(path),
+      lazy = lazy_name(path),
       origin = origin_of(source),
       light = is_light(name, path, source),
     }
